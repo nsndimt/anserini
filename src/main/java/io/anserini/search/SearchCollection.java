@@ -32,6 +32,7 @@ import io.anserini.rerank.lib.Rm3Reranker;
 import io.anserini.rerank.lib.ScoreTiesAdjusterReranker;
 import io.anserini.search.query.BagOfWordsQueryGenerator;
 import io.anserini.search.query.SdmQueryGenerator;
+import io.anserini.search.query.LuceneQueryGenerator;
 import io.anserini.search.similarity.AccurateBM25Similarity;
 import io.anserini.search.similarity.TaggedSimilarity;
 import io.anserini.search.topicreader.BackgroundLinkingTopicReader;
@@ -124,7 +125,8 @@ public final class SearchCollection implements Closeable {
 
   public enum QueryConstructor {
     BagOfTerms,
-    SequentialDependenceModel
+    SequentialDependenceModel,
+    LuceneQuery
   }
 
   private final QueryConstructor qc;
@@ -256,7 +258,11 @@ public final class SearchCollection implements Closeable {
     if (args.sdm) {
       LOG.info("QueryConstructor: SequentialDependenceModel");
       qc = QueryConstructor.SequentialDependenceModel;
-    } else {
+    } else if (args.parse) {
+        LOG.info("QueryConstructor: LuceneQueryParse");
+        qc = QueryConstructor.LuceneQuery;
+    }
+    else {
       LOG.info("QueryConstructor: BagOfTerms");
       qc = QueryConstructor.BagOfTerms;
     }
@@ -450,6 +456,8 @@ public final class SearchCollection implements Closeable {
     Query query = null;
     if (qc == QueryConstructor.SequentialDependenceModel) {
       query = new SdmQueryGenerator(args.sdm_tw, args.sdm_ow, args.sdm_uw).buildQuery(IndexArgs.CONTENTS, analyzer, queryString);
+    } else if (qc == QueryConstructor.LuceneQuery) {
+        query = new LuceneQueryGenerator().buildQuery(IndexArgs.CONTENTS, analyzer, queryString);
     } else {
       query = new BagOfWordsQueryGenerator().buildQuery(IndexArgs.CONTENTS, analyzer, queryString);
     }
@@ -551,7 +559,10 @@ public final class SearchCollection implements Closeable {
     Query keywordQuery;
     if (qc == QueryConstructor.SequentialDependenceModel) {
       keywordQuery = new SdmQueryGenerator(args.sdm_tw, args.sdm_ow, args.sdm_uw).buildQuery(IndexArgs.CONTENTS, analyzer, queryString);
-    } else {
+    } else if (qc == QueryConstructor.LuceneQuery) {
+        keywordQuery = new LuceneQueryGenerator().buildQuery(IndexArgs.CONTENTS, analyzer, queryString);
+    }
+    else {
       keywordQuery = new BagOfWordsQueryGenerator().buildQuery(IndexArgs.CONTENTS, analyzer, queryString);
     }
     List<String> queryTokens = AnalyzerUtils.analyze(analyzer, queryString);

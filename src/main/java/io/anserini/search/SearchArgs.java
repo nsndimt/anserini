@@ -294,6 +294,9 @@ public class SearchArgs {
   @Option(name = "-qid_queries", metaVar = "[file]", usage = "query id - query mapping file")
   public String qid_queries = "";
 
+  @Option(name = "-luence_query", usage = "boolean switch to use Lucene Query syntax")
+  public boolean parse = false;
+
   // These are convenience methods to support a fluent, method-chaining style of programming.
   public SearchArgs bm25() {
     this.bm25 = true;

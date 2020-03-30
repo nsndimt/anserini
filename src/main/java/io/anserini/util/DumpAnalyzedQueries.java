@@ -17,9 +17,11 @@
 package io.anserini.util;
 
 import io.anserini.analysis.AnalyzerUtils;
+import io.anserini.analysis.DefaultEnglishAnalyzer;
 import io.anserini.index.IndexCollection;
 import io.anserini.search.topicreader.TopicReader;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.lucene.analysis.Analyzer;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -48,6 +50,9 @@ public class DumpAnalyzedQueries {
 
     @Option(name = "-output", metaVar = "[file]", required = true, usage = "queries")
     public String output;
+
+    @Option(name = "-krovetz", usage = "krovetz stemming")
+    public boolean krovetz = false;
   }
 
   @SuppressWarnings("unchecked")
@@ -91,8 +96,11 @@ public class DumpAnalyzedQueries {
     SortedMap<?, Map<String, String>> topics = tr.read();
 
     FileOutputStream out = new FileOutputStream(args.output);
+    Analyzer analyzer = null;
+    if(args.krovetz) analyzer = DefaultEnglishAnalyzer.newStemmingInstance("krovetz");
+    else analyzer = IndexCollection.DEFAULT_ANALYZER;
     for (Map.Entry<?, Map<String, String>> entry : topics.entrySet()) {
-      List<String> tokens = AnalyzerUtils.analyze(IndexCollection.DEFAULT_ANALYZER, entry.getValue().get("title"));
+      List<String> tokens = AnalyzerUtils.analyze(analyzer, entry.getValue().get("title"));
       out.write((entry.getKey() + "\t" + StringUtils.join(tokens, " ") + "\n").getBytes());
     }
     out.close();

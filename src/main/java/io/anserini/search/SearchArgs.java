@@ -232,12 +232,16 @@ public class SearchArgs {
       usage = "RM3 parameter: flag to print original and expanded queries")
   public boolean rm3_outputQuery = false;
 
+  // ------------------------------
+  // query expansion model: bm25prf
+  // ------------------------------
+
   @Option(name = "-smm", usage = "use SMM query expansion model")
   public boolean smm = false;
 
   @Option(name = "-smm.fbTerms", handler = StringArrayOptionHandler.class,
           usage = "SMM parameter: number of expansion terms")
-  public String[] smm_fbTerms = new String[]{"10"};
+  public String[] smm_fbTerms = new String[]{"20"};
 
   @Option(name = "-smm.fbDocs", handler = StringArrayOptionHandler.class,
           usage = "SMM parameter: number of expansion documents")
@@ -245,11 +249,11 @@ public class SearchArgs {
 
   @Option(name = "-smm.originalQueryWeight", handler = StringArrayOptionHandler.class,
           usage = "SMM parameter: weight to assign to the original query")
-  public String[] smm_originalQueryWeight = new String[]{"0.5"};
+  public String[] smm_originalQueryWeight = new String[]{"0.6"};
 
   @Option(name = "-smm.lambda", handler = StringArrayOptionHandler.class,
           usage = "SMM parameter: k1")
-  public String[] smm_lambda = new String[]{"0.1"};
+  public String[] smm_lambda = new String[]{"0.5"};
 
   @Option(name = "-smm.outputQuery",
           usage = "SMM parameter: flag to print original and expanded queries")

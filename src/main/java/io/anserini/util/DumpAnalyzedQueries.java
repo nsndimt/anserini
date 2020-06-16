@@ -22,6 +22,7 @@ import io.anserini.index.IndexCollection;
 import io.anserini.search.topicreader.TopicReader;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -35,8 +36,9 @@ import java.util.Map;
 import java.util.SortedMap;
 
 /**
- * Utility to dump out query terms that have analyzed with Anserini's default Lucene Analyzer, DefaultEnglishAnalyzer
- * with Porter stemming. Query terms are taken from the "title" of topics. Output is a TSV file, with (topic id,
+ * Utility to dump out query terms that have analyzed with Anserini's query pipeline.
+ * This process includes topic file parsing, query analyzer, stemming, stop-words removal.
+ * Final queries may still be changed by query generator. Output is a TSV file, with (topic id,
  * analyzed query) tuples; the analyzed query comprises space-delimited tokens.
  */
 public class DumpAnalyzedQueries {
@@ -51,8 +53,11 @@ public class DumpAnalyzedQueries {
     @Option(name = "-output", metaVar = "[file]", required = true, usage = "queries")
     public String output;
 
-    @Option(name = "-krovetz", usage = "krovetz stemming")
-    public boolean krovetz = false;
+    @Option(name = "-stemmer", usage = "Stemmer: one of the following porter,krovetz,none. Default porter")
+    public String stemmer = "porter";
+
+    @Option(name = "-keepstopwords", usage = "Boolean switch to keep stopwords in the query topics")
+    public boolean keepstop = false;
   }
 
   @SuppressWarnings("unchecked")
@@ -96,9 +101,9 @@ public class DumpAnalyzedQueries {
     SortedMap<?, Map<String, String>> topics = tr.read();
 
     FileOutputStream out = new FileOutputStream(args.output);
-    Analyzer analyzer = null;
-    if(args.krovetz) analyzer = DefaultEnglishAnalyzer.newStemmingInstance("krovetz");
-    else analyzer = IndexCollection.DEFAULT_ANALYZER;
+    Analyzer analyzer = args.keepstop ?
+            DefaultEnglishAnalyzer.newStemmingInstance(args.stemmer, CharArraySet.EMPTY_SET) :
+            DefaultEnglishAnalyzer.newStemmingInstance(args.stemmer);
     for (Map.Entry<?, Map<String, String>> entry : topics.entrySet()) {
       List<String> tokens = AnalyzerUtils.analyze(analyzer, entry.getValue().get("title"));
       out.write((entry.getKey() + "\t" + StringUtils.join(tokens, " ") + "\n").getBytes());

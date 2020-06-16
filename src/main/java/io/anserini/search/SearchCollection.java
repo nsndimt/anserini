@@ -26,11 +26,7 @@ import io.anserini.index.generator.WashingtonPostGenerator;
 import io.anserini.rerank.RerankerCascade;
 import io.anserini.rerank.RerankerContext;
 import io.anserini.rerank.ScoredDocuments;
-import io.anserini.rerank.lib.AxiomReranker;
-import io.anserini.rerank.lib.BM25PrfReranker;
-import io.anserini.rerank.lib.NewsBackgroundLinkingReranker;
-import io.anserini.rerank.lib.Rm3Reranker;
-import io.anserini.rerank.lib.ScoreTiesAdjusterReranker;
+import io.anserini.rerank.lib.*;
 import io.anserini.search.query.QueryGenerator;
 import io.anserini.search.query.SdmQueryGenerator;
 import io.anserini.search.similarity.AccurateBM25Similarity;
@@ -299,7 +295,7 @@ public final class SearchCollection implements Closeable {
       LOG.info("Keep stopwords? " + args.keepstop);
     }
 
-    isRerank = args.rm3 || args.axiom || args.bm25prf;
+    isRerank = args.rm3 || args.axiom || args.bm25prf || args.smm;
 
     if (this.isRerank && args.rf_qrels != null){
       loadQrels(args.rf_qrels);      
@@ -438,7 +434,32 @@ public final class SearchCollection implements Closeable {
           }
         }
       }
-    } else {
+    } else if (args.smm) {
+      for (String fbTerms : args.smm_fbTerms) {
+        for (String fbDocs : args.smm_fbDocs) {
+          for (String originalQueryWeight : args.smm_originalQueryWeight) {
+            for (String lambda : args.smm_lambda) {
+              String tag;
+              if (this.args.rf_qrels != null){
+                tag = String.format("smmRf(fbTerms=%s,originalQueryWeight=%s,lambda=%s)",
+                        fbTerms, originalQueryWeight,lambda);
+              } else{
+                tag = String.format("smm(fbTerms=%s,fbDocs=%s,originalQueryWeight=%s,lambda=%s)",
+                        fbTerms, fbDocs, originalQueryWeight,lambda);
+              }
+
+              RerankerCascade cascade = new RerankerCascade(tag);
+              cascade.add(new SMMReranker(analyzer, IndexArgs.CONTENTS, Integer.valueOf(fbTerms),
+                      Integer.valueOf(fbDocs), Float.valueOf(originalQueryWeight), Float.valueOf(lambda),
+                      args.smm_outputQuery));
+              cascade.add(new ScoreTiesAdjusterReranker());
+              cascades.add(cascade);
+            }
+          }
+        }
+      }
+    }
+    else {
       RerankerCascade cascade = new RerankerCascade();
       cascade.add(new ScoreTiesAdjusterReranker());
       cascades.add(cascade);

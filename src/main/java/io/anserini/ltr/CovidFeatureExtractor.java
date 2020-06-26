@@ -16,24 +16,14 @@
 
 package io.anserini.ltr;
 
+import io.anserini.analysis.AnalyzerUtils;
 import io.anserini.index.IndexArgs;
 import io.anserini.ltr.feature.FeatureExtractors;
 import io.anserini.ltr.feature.OrderedSequentialPairsFeatureExtractor;
 import io.anserini.ltr.feature.UnigramFeatureExtractor;
 import io.anserini.ltr.feature.UnorderedSequentialPairsFeatureExtractor;
-import io.anserini.ltr.feature.base.AvgICTFFeatureExtractor;
-import io.anserini.ltr.feature.base.AvgIDFFeatureExtractor;
-import io.anserini.ltr.feature.base.BM25FeatureExtractor;
-import io.anserini.ltr.feature.base.DocSizeFeatureExtractor;
-import io.anserini.ltr.feature.base.MatchingTermCount;
-import io.anserini.ltr.feature.base.PMIFeatureExtractor;
-import io.anserini.ltr.feature.base.QueryLength;
-import io.anserini.ltr.feature.base.SCQFeatureExtractor;
-import io.anserini.ltr.feature.base.SimplifiedClarityFeatureExtractor;
-import io.anserini.ltr.feature.base.SumMatchingTf;
-import io.anserini.ltr.feature.base.TFIDFFeatureExtractor;
-import io.anserini.ltr.feature.base.TermFrequencyFeatureExtractor;
-import io.anserini.ltr.feature.base.UniqueTermCount;
+import io.anserini.ltr.feature.base.*;
+import io.anserini.rerank.RerankerContext;
 import io.anserini.util.Qrels;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,19 +33,18 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.io.IOException;
+import java.util.*;
 
 /**
  * Feature extractor for the gov two collection
  */
-public class WebFeatureExtractor extends BaseFeatureExtractor {
-  private static final Logger LOG = LogManager.getLogger(WebFeatureExtractor.class);
+public class CovidFeatureExtractor extends BaseFeatureExtractor {
+  private static final Logger LOG = LogManager.getLogger(CovidFeatureExtractor.class);
 
   //**************************************************
   //**************************************************
@@ -87,8 +76,8 @@ public class WebFeatureExtractor extends BaseFeatureExtractor {
 
   private QueryParser parser;
 
-  public WebFeatureExtractor(IndexReader reader, Qrels qrels, Map<String, Map<String, String>> topics,
-                             String topic_field) {
+  public CovidFeatureExtractor(IndexReader reader, Qrels qrels, Map<String, Map<String, String>> topics,
+                               String topic_field) {
     this(reader, qrels, topics, topic_field, getDefaultExtractors());
     LOG.debug("Web Feature extractor initialized.");
   }
@@ -102,8 +91,8 @@ public class WebFeatureExtractor extends BaseFeatureExtractor {
    * @param customExtractors
    */
   @SuppressWarnings("unchecked")
-  public <K> WebFeatureExtractor(IndexReader reader, Qrels qrels, Map<K, Map<String, String>> topics,
-                                 String topic_field, FeatureExtractors customExtractors) {
+  public <K> CovidFeatureExtractor(IndexReader reader, Qrels qrels, Map<K, Map<String, String>> topics,
+                                   String topic_field, FeatureExtractors customExtractors) {
     super(reader, qrels, topics, topic_field, customExtractors == null ? getDefaultExtractors() : customExtractors);
     this.parser = new QueryParser(getTermVectorField(), getAnalyzer());
     LOG.debug("Web Feature extractor initialized.");

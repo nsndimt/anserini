@@ -21,6 +21,7 @@ import io.anserini.search.topicreader.MicroblogTopicReader;
 import io.anserini.search.topicreader.TopicReader;
 import io.anserini.search.topicreader.TrecTopicReader;
 import io.anserini.search.topicreader.WebxmlTopicReader;
+import io.anserini.search.topicreader.CovidTopicReader;
 import io.anserini.util.Qrels;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -59,7 +60,7 @@ public class FeatureExtractorCli {
     @Option(name = "-out", metaVar = "[path]", required = true, usage = "Output File")
     public String outputFile;
 
-    @Option(name = "-collection", metaVar = "[path]", required = true, usage = "[clueweb|gov2|twitter]")
+    @Option(name = "-collection", metaVar = "[path]", required = true, usage = "[clueweb|gov2|twitter|trec_covid]")
     public String collection;
 
     @Option(name = "-extractors", metaVar = "[path]", required = false, usage = "FeatureExtractors File")
@@ -73,7 +74,10 @@ public class FeatureExtractorCli {
         return (TopicReader<K>) new TrecTopicReader(Paths.get(topicsFile));
       } else if ("twitter".equals(collection)) {
         return (TopicReader<K>) new MicroblogTopicReader(Paths.get(topicsFile));
+      } else if ("trec_covid".equals(collection)) {
+        return (TopicReader<K>) new CovidTopicReader(Paths.get(topicsFile));
       }
+
 
       throw new RuntimeException("Unrecognized collection " + collection);
     }
@@ -81,9 +85,11 @@ public class FeatureExtractorCli {
     @SuppressWarnings("unchecked")
     public <K> BaseFeatureExtractor<K> buildBaseFeatureExtractor(IndexReader reader, Qrels qrels, Map<K, Map<String, String>> topics, FeatureExtractors extractors) {
       if ("clueweb".equals(collection) || "gov2".equals(collection)) {
-        return new WebFeatureExtractor(reader, qrels, topics, extractors);
+        return new WebFeatureExtractor(reader, qrels, topics, "title", extractors);
+      } else if ("trec_covid".equals(collection)) {
+        return new CovidFeatureExtractor(reader, qrels, topics, "query", extractors);
       } else if ("twitter".equals(collection)) {
-        return (BaseFeatureExtractor<K>) new TwitterFeatureExtractor(reader, qrels, (Map<Integer, Map<String, String>>) topics, extractors);
+        return (BaseFeatureExtractor<K>) new TwitterFeatureExtractor(reader, qrels, (Map<Integer, Map<String, String>>) topics,"title", extractors);
       }
 
       throw new RuntimeException("Unrecognized collection " + collection);

@@ -17,6 +17,7 @@
 package io.anserini.ltr;
 
 import io.anserini.analysis.AnalyzerUtils;
+import io.anserini.analysis.DefaultEnglishAnalyzer;
 import io.anserini.index.IndexArgs;
 import io.anserini.ltr.feature.FeatureExtractors;
 import io.anserini.ltr.feature.OrderedSequentialPairsFeatureExtractor;
@@ -24,6 +25,8 @@ import io.anserini.ltr.feature.UnigramFeatureExtractor;
 import io.anserini.ltr.feature.UnorderedSequentialPairsFeatureExtractor;
 import io.anserini.ltr.feature.base.*;
 import io.anserini.rerank.RerankerContext;
+import io.anserini.search.query.BagOfWordsQueryGenerator;
+import io.anserini.search.query.QueryGenerator;
 import io.anserini.util.Qrels;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -74,7 +77,7 @@ public class CovidFeatureExtractor extends BaseFeatureExtractor {
   //**************************************************
   //**************************************************
 
-  private QueryParser parser;
+  private QueryGenerator parser;
 
   public CovidFeatureExtractor(IndexReader reader, Qrels qrels, Map<String, Map<String, String>> topics,
                                String topic_field) {
@@ -94,7 +97,8 @@ public class CovidFeatureExtractor extends BaseFeatureExtractor {
   public <K> CovidFeatureExtractor(IndexReader reader, Qrels qrels, Map<K, Map<String, String>> topics,
                                    String topic_field, FeatureExtractors customExtractors) {
     super(reader, qrels, topics, topic_field, customExtractors == null ? getDefaultExtractors() : customExtractors);
-    this.parser = new QueryParser(getTermVectorField(), getAnalyzer());
+    this.parser = new BagOfWordsQueryGenerator();
+
     LOG.debug("Web Feature extractor initialized.");
   }
 
@@ -114,7 +118,7 @@ public class CovidFeatureExtractor extends BaseFeatureExtractor {
 
   @Override
   protected Analyzer getAnalyzer() {
-    return new EnglishAnalyzer();
+    return DefaultEnglishAnalyzer.newDefaultInstance();
   }
 
   @Override
@@ -124,13 +128,7 @@ public class CovidFeatureExtractor extends BaseFeatureExtractor {
 
   @Override
   protected Query parseQuery(String queryText) {
-    try {
-      return this.parser.parse(queryText);
-    } catch (ParseException e) {
-      LOG.error(String.format("Unable to parse query for query text %s, error %s",
-              queryText, e));
-      return null;
-    }
+    return this.parser.buildQuery(getTermVectorField(),getAnalyzer(),queryText);
   }
 
   @Override

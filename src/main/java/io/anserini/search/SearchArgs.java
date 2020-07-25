@@ -233,7 +233,7 @@ public class SearchArgs {
   public boolean rm3_outputQuery = false;
 
   // ------------------------------
-  // query expansion model: bm25prf
+  // query expansion model: smm
   // ------------------------------
 
   @Option(name = "-smm", usage = "use SMM query expansion model")
@@ -249,10 +249,10 @@ public class SearchArgs {
 
   @Option(name = "-smm.originalQueryWeight", handler = StringArrayOptionHandler.class,
           usage = "SMM parameter: weight to assign to the original query")
-  public String[] smm_originalQueryWeight = new String[]{"0.6"};
+  public String[] smm_originalQueryWeight = new String[]{"0.5"};
 
   @Option(name = "-smm.lambda", handler = StringArrayOptionHandler.class,
-          usage = "SMM parameter: k1")
+          usage = "SMM parameter: probability of background language model")
   public String[] smm_lambda = new String[]{"0.5"};
 
   @Option(name = "-smm.outputQuery",

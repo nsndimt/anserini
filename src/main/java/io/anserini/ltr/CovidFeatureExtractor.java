@@ -52,7 +52,7 @@ public class CovidFeatureExtractor extends BaseFeatureExtractor {
   //**************************************************
   //**************************************************
   private static final FeatureExtractors DEFAULT_EXTRACTOR_CHAIN = FeatureExtractors.
-          createFeatureExtractorChain(new UnigramFeatureExtractor(),
+          createFeatureExtractorChain(
                   new UnorderedSequentialPairsFeatureExtractor(6),
                   new UnorderedSequentialPairsFeatureExtractor(8),
                   new UnorderedSequentialPairsFeatureExtractor(10),
@@ -62,9 +62,6 @@ public class CovidFeatureExtractor extends BaseFeatureExtractor {
                   new MatchingTermCount(),
                   new QueryLength(),
                   new SumMatchingTf(),
-                  new TermFrequencyFeatureExtractor(),
-                  new BM25FeatureExtractor(),
-                  new TFIDFFeatureExtractor(),
                   new UniqueTermCount(),
                   new DocSizeFeatureExtractor(),
                   new AvgICTFFeatureExtractor(),

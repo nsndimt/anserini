@@ -181,7 +181,7 @@ public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
     PrintWriter out = new PrintWriter(Files.newBufferedWriter(Paths.get(searchArgs.output), StandardCharsets.US_ASCII));
 
     for (Object id : topics.keySet()) {
-      long t = Long.parseLong(topics.get(id).get("time"));
+      long t = Long.parseLong(topics.get(id).get("date"));
       Result[] results = searcher.searchTweets(topics.get(id).get("title"), 1000, t);
 
       for (int i=0; i<results.length; i++) {

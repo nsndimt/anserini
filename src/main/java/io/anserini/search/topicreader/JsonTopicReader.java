@@ -27,8 +27,8 @@ public class JsonTopicReader extends TopicReader<String> {
       JsonNode node = mapper.readTree(line);
 
       Map<String,String> fields = new HashMap<>();
-      fields.put("query", node.get("query").asText());
-      fields.put("time", node.get("time").asText());
+      fields.put("title", node.get("title").asText());
+      fields.put("date", node.get("date").asText());
       map.put(node.get("qid").asText(), fields);
     }
 

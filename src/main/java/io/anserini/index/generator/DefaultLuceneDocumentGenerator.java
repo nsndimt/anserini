@@ -57,9 +57,6 @@ public class DefaultLuceneDocumentGenerator<T extends SourceDocument> implements
       throw new InvalidDocumentException();
     }
 
-    date = Long.parseLong(((MultifieldSourceDocument)src).fields().get("date"));
-
-
     if (contents.trim().length() == 0) {
       throw new EmptyDocumentException();
     }
@@ -101,8 +98,15 @@ public class DefaultLuceneDocumentGenerator<T extends SourceDocument> implements
 //        document.add(new Field(k, v, fieldType));
 //      });
 //    }
-    document.add(new LongPoint("date", date));
-    document.add(new NumericDocValuesField("date", date));
+    try {
+      if (src instanceof MultifieldSourceDocument) {
+        date = Long.parseLong(((MultifieldSourceDocument)src).fields().get("date"));
+        document.add(new LongPoint("date", date));
+        document.add(new NumericDocValuesField("date", date));
+      }
+    } catch (NullPointerException e) {
+      date = 0L;
+    }
 
     return document;
   }

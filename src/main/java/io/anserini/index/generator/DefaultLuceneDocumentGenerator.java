@@ -20,12 +20,7 @@ import io.anserini.collection.InvalidContentsException;
 import io.anserini.collection.MultifieldSourceDocument;
 import io.anserini.collection.SourceDocument;
 import io.anserini.index.IndexArgs;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.*;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 
@@ -53,6 +48,7 @@ public class DefaultLuceneDocumentGenerator<T extends SourceDocument> implements
   public Document createDocument(T src) throws GeneratorException {
     String id = src.id();
     String contents;
+    Long date;
 
     try {
       contents = src.contents();
@@ -60,6 +56,9 @@ public class DefaultLuceneDocumentGenerator<T extends SourceDocument> implements
       // Catch and rethrow; indexer will eat the exception at top level and increment counters accordingly.
       throw new InvalidDocumentException();
     }
+
+    date = Long.parseLong(((MultifieldSourceDocument)src).fields().get("date"));
+
 
     if (contents.trim().length() == 0) {
       throw new EmptyDocumentException();
@@ -97,11 +96,13 @@ public class DefaultLuceneDocumentGenerator<T extends SourceDocument> implements
 
     // If this document has other fields, then we want to index it also.
     // Currently we just use all the settings of the main "content" field.
-    if (src instanceof MultifieldSourceDocument) {
-      ((MultifieldSourceDocument) src).fields().forEach((k, v) -> {
-        document.add(new Field(k, v, fieldType));
-      });
-    }
+//    if (src instanceof MultifieldSourceDocument) {
+//      ((MultifieldSourceDocument) src).fields().forEach((k, v) -> {
+//        document.add(new Field(k, v, fieldType));
+//      });
+//    }
+    document.add(new LongPoint("date", date));
+    document.add(new NumericDocValuesField("date", date));
 
     return document;
   }

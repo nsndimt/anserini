@@ -124,7 +124,7 @@ public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
     // Do not consider the tweets with tweet ids that are beyond the queryTweetTime
     // <querytweettime> tag contains the timestamp of the query in terms of the
     // chronologically nearest tweet id within the corpus
-    Query filter = LongPoint.newRangeQuery(TweetGenerator.TweetField.ID_LONG.name, 0L, t);
+    Query filter = LongPoint.newRangeQuery("date", 0L, t);
     BooleanQuery.Builder builder = new BooleanQuery.Builder();
     builder.add(filter, BooleanClause.Occur.FILTER);
     builder.add(query, BooleanClause.Occur.MUST);

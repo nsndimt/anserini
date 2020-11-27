@@ -23,6 +23,9 @@ import io.anserini.index.generator.TweetGenerator;
 import io.anserini.rerank.RerankerContext;
 import io.anserini.rerank.ScoredDocuments;
 import io.anserini.search.query.BagOfWordsQueryGenerator;
+import io.anserini.search.query.QueryGenerator;
+import io.anserini.search.query.WRawQueryGenerator;
+import io.anserini.search.topicreader.JsonTopicReader;
 import io.anserini.search.topicreader.TopicReader;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.apache.logging.log4j.LogManager;
@@ -95,8 +98,9 @@ public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
   }
 
   public Result[] searchTweets(String q, int k, long t) throws IOException {
-    Query query = new BagOfWordsQueryGenerator().buildQuery(IndexArgs.CONTENTS, analyzer, q);
-    List<String> queryTokens = AnalyzerUtils.analyze(analyzer, q);
+    WRawQueryGenerator parser = new WRawQueryGenerator();
+    Query query = parser.buildQuery(IndexArgs.CONTENTS, analyzer, q);
+    List<String> queryTokens = parser.parse(IndexArgs.CONTENTS, analyzer, q);
 
     return searchTweets(query, queryTokens, q, k, t);
   }
@@ -172,13 +176,9 @@ public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
 
     final long start = System.nanoTime();
     SimpleTweetSearcher searcher = new SimpleTweetSearcher(searchArgs.index);
-    SortedMap<Object, Map<String, String>> topics = TopicReader.getTopicsByFile(searchArgs.topics);
+    SortedMap<String, Map<String, String>> topics = new JsonTopicReader(Paths.get(searchArgs.topics)).read();
 
     PrintWriter out = new PrintWriter(Files.newBufferedWriter(Paths.get(searchArgs.output), StandardCharsets.US_ASCII));
-
-    if (searchArgs.useRM3) {
-      searcher.setRM3();
-    }
 
     for (Object id : topics.keySet()) {
       long t = Long.parseLong(topics.get(id).get("time"));

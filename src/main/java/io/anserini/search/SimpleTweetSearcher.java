@@ -52,10 +52,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -71,6 +68,21 @@ public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
   public static final class Args {
     @Option(name = "-index", metaVar = "[path]", required = true, usage = "Path to Lucene index.")
     public String index;
+
+    @Option(name = "-bm25", usage = "Flag to use BM25.", forbids = {"-ql"})
+    public Boolean useBM25 = true;
+
+    @Option(name = "-bm25.k1", usage = "BM25 k1 value.", forbids = {"-ql"})
+    public float bm25_k1 = 0.9f;
+
+    @Option(name = "-bm25.b", usage = "BM25 b value.", forbids = {"-ql"})
+    public float bm25_b = 0.4f;
+
+    @Option(name = "-qld", usage = "Flag to use query-likelihood with Dirichlet smoothing.", forbids={"-bm25"})
+    public Boolean useQL = false;
+
+    @Option(name = "-qld.mu", usage = "Dirichlet smoothing parameter value for query-likelihood.", forbids={"-bm25"})
+    public float ql_mu = 1000.0f;
 
     @Option(name = "-topics", metaVar = "[file]", required = true, usage = "Topics file.")
     public String topics;
@@ -176,6 +188,14 @@ public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
 
     final long start = System.nanoTime();
     SimpleTweetSearcher searcher = new SimpleTweetSearcher(searchArgs.index);
+    List<String> argsAsList = Arrays.asList(args);
+    if (argsAsList.contains("-bm25")) {
+      LOG.info("Testing code path of explicitly setting BM25.");
+      searcher.setBM25(searchArgs.bm25_k1, searchArgs.bm25_b);
+    } else if (searchArgs.useQL){
+      LOG.info("Testing code path of explicitly setting QL.");
+      searcher.setQLD(searchArgs.ql_mu);
+    }
     SortedMap<String, Map<String, String>> topics = new JsonTopicReader(Paths.get(searchArgs.topics)).read();
 
     PrintWriter out = new PrintWriter(Files.newBufferedWriter(Paths.get(searchArgs.output), StandardCharsets.US_ASCII));

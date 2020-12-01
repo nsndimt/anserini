@@ -28,6 +28,7 @@ import io.anserini.search.query.WRawQueryGenerator;
 import io.anserini.search.topicreader.JsonTopicReader;
 import io.anserini.search.topicreader.TopicReader;
 import org.apache.commons.lang3.time.DurationFormatUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Document;
@@ -53,16 +54,17 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Class that exposes basic search functionality, designed specifically to provide the bridge between Java and Python
  * via pyjnius.
  */
 public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
-  public static final Sort BREAK_SCORE_TIES_BY_TWEETID =
+  public static final Sort BREAK_SCORE_TIES_BY_DATE =
       new Sort(SortField.FIELD_SCORE,
-          new SortField(TweetGenerator.TweetField.ID_LONG.name, SortField.Type.LONG, true));
+          new SortField("date", SortField.Type.LONG, true));
   private static final Logger LOG = LogManager.getLogger(SimpleTweetSearcher.class);
 
   public static final class Args {
@@ -90,9 +92,6 @@ public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
     @Option(name = "-output", metaVar = "[file]", required = true, usage = "Output run file.")
     public String output;
 
-    @Option(name = "-rm3", usage = "Flag to use RM3.")
-    public Boolean useRM3 = false;
-
     @Option(name = "-hits", metaVar = "[number]", usage = "max number of hits to return")
     public int hits = 1000;
   }
@@ -101,7 +100,7 @@ public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
   }
 
   public SimpleTweetSearcher(String indexDir) throws IOException {
-    super(indexDir, new TweetAnalyzer());
+    super(indexDir);
   }
 
   @Override
@@ -109,58 +108,91 @@ public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
     reader.close();
   }
 
-  public Result[] searchTweets(String q, int k, long t) throws IOException {
-    WRawQueryGenerator parser = new WRawQueryGenerator();
-    Query query = parser.buildQuery(IndexArgs.CONTENTS, analyzer, q);
-    List<String> queryTokens = parser.parse(IndexArgs.CONTENTS, analyzer, q);
-
-    return searchTweets(query, queryTokens, q, k, t);
-  }
-
-  protected Result[] searchTweets(Query query, List<String> queryTokens, String queryString, int k, long t)
-      throws IOException {
-    // Create an IndexSearch only once. Note that the object is thread safe.
+  public Map<String, Result[]> batchSearchTweet(List<Pair<String, Long>> queries, List<String> qids, int k, int threads) {
+    // Create the IndexSearcher here, if needed. We do it here because if we leave the creation to the search
+    // method, we might end up with a race condition as multiple threads try to concurrently create the IndexSearcher.
     if (searcher == null) {
       searcher = new IndexSearcher(reader);
       searcher.setSimilarity(similarity);
     }
 
-    SearchArgs searchArgs = new SearchArgs();
-    searchArgs.arbitraryScoreTieBreak = false;
-    searchArgs.hits = k;
-    searchArgs.searchtweets = true;
+    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(threads);
+    ConcurrentHashMap<String, Result[]> results = new ConcurrentHashMap<>();
 
-    TopDocs rs;
-    RerankerContext context;
+    long startTime = System.nanoTime();
+    AtomicLong index = new AtomicLong();
+    int queryCnt = queries.size();
+    for (int q = 0; q < queryCnt; ++q) {
+      String qid = qids.get(q);
+      String queryExp = queries.get(q).getLeft();
+      long timeFilter = queries.get(q).getRight();
+      executor.execute(() -> {
+        try {
+          WRawQueryGenerator parser = new WRawQueryGenerator();
+          Query query = parser.buildQuery(IndexArgs.CONTENTS, analyzer, queryExp);
 
-    // Do not consider the tweets with tweet ids that are beyond the queryTweetTime
-    // <querytweettime> tag contains the timestamp of the query in terms of the
-    // chronologically nearest tweet id within the corpus
-    Query filter = LongPoint.newRangeQuery("date", 0L, t);
-    BooleanQuery.Builder builder = new BooleanQuery.Builder();
-    builder.add(filter, BooleanClause.Occur.FILTER);
-    builder.add(query, BooleanClause.Occur.MUST);
-    Query compositeQuery = builder.build();
-    rs = searcher.search(compositeQuery, useRM3 ? searchArgs.rerankcutoff :
-        k, BREAK_SCORE_TIES_BY_TWEETID, true);
-    context = new RerankerContext<>(searcher, null, compositeQuery, null,
-        queryString, queryTokens, filter, searchArgs);
+          SearchArgs searchArgs = new SearchArgs();
+          searchArgs.arbitraryScoreTieBreak = false;
+          searchArgs.hits = k;
+          searchArgs.searchtweets = true;
 
-    ScoredDocuments hits = cascade.run(ScoredDocuments.fromTopDocs(rs, searcher), context);
+          TopDocs rs;
 
-    Result[] results = new Result[hits.ids.length];
-    for (int i = 0; i < hits.ids.length; i++) {
-      Document doc = hits.documents[i];
-      String docid = doc.getField(IndexArgs.ID).stringValue();
+          // Do not consider the tweets with tweet ids that are beyond the queryTweetTime
+          // <querytweettime> tag contains the timestamp of the query in terms of the
+          // chronologically nearest tweet id within the corpus
+          Query filter = LongPoint.newRangeQuery("date", 0L, timeFilter);
+          BooleanQuery.Builder builder = new BooleanQuery.Builder();
+          builder.add(filter, BooleanClause.Occur.FILTER);
+          builder.add(query, BooleanClause.Occur.MUST);
+          Query compositeQuery = builder.build();
+          rs = searcher.search(compositeQuery, k, BREAK_SCORE_TIES_BY_DATE, true);
+          ScoredDocuments hits = ScoredDocuments.fromTopDocs(rs, searcher);
+          Result[] rankList = new Result[hits.ids.length];
+          for (int i = 0; i < hits.ids.length; i++) {
+            Document doc = hits.documents[i];
+            String docid = doc.getField(IndexArgs.ID).stringValue();
 
-      IndexableField field;
-      field = doc.getField(IndexArgs.CONTENTS);
-      String contents = field == null ? null : field.stringValue();
+            IndexableField field;
+            field = doc.getField(IndexArgs.CONTENTS);
+            String contents = field == null ? null : field.stringValue();
 
-      field = doc.getField(IndexArgs.RAW);
-      String raw = field == null ? null : field.stringValue();
+            field = doc.getField(IndexArgs.RAW);
+            String raw = field == null ? null : field.stringValue();
+            rankList[i] = new Result(docid, hits.ids[i], hits.scores[i], contents, raw, doc);
+          }
+          results.put(qid, rankList);
 
-      results[i] = new Result(docid, hits.ids[i], hits.scores[i], contents, raw, doc);
+        } catch (IOException e) {
+          throw new CompletionException(e);
+        }
+        // logging for speed
+        Long lineNumber = index.incrementAndGet();
+        if (lineNumber % 100 == 0) {
+          double timePerQuery = (double) (System.nanoTime() - startTime) / (lineNumber + 1) / 1e9;
+          LOG.info(String.format("Retrieving query " + lineNumber + " (%.3f s/query)", timePerQuery));
+        }
+      });
+    }
+
+    executor.shutdown();
+
+    try {
+      // Wait for existing tasks to terminate
+      while (!executor.awaitTermination(1, TimeUnit.MINUTES)) {
+        LOG.info(String.format("%.2f percent completed",
+                (double) executor.getCompletedTaskCount() / queries.size() * 100.0d));
+      }
+    } catch (InterruptedException ie) {
+      // (Re-)Cancel if current thread also interrupted
+      executor.shutdownNow();
+      // Preserve interrupt status
+      Thread.currentThread().interrupt();
+    }
+
+    if (queryCnt != executor.getCompletedTaskCount()) {
+      throw new RuntimeException("queryCount = " + queryCnt +
+              " is not equal to completedTaskCount =  " + executor.getCompletedTaskCount());
     }
 
     return results;
@@ -200,10 +232,16 @@ public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
 
     PrintWriter out = new PrintWriter(Files.newBufferedWriter(Paths.get(searchArgs.output), StandardCharsets.US_ASCII));
 
-    for (Object id : topics.keySet()) {
+    List<Pair<String, Long>> taskInput = new ArrayList<>();
+    List<String> taskIds = new ArrayList<>();
+    for (String id : topics.keySet()) {
+      taskIds.add(id);
       long t = Long.parseLong(topics.get(id).get("date"));
-      Result[] results = searcher.searchTweets(topics.get(id).get("title"), 1000, t);
-
+      taskInput.add(Pair.of(topics.get(id).get("title"), t));
+    }
+    Map<String, Result[]> threadResult = searcher.batchSearchTweet(taskInput, taskIds, 1000, 20);
+    for (String id : taskIds) {
+      Result[] results = threadResult.get(id);
       for (int i=0; i<results.length; i++) {
         out.println(String.format(Locale.US, "%s Q0 %s %d %f Anserini",
             id, results[i].docid, (i+1), results[i].score));

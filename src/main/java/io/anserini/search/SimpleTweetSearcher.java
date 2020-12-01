@@ -94,6 +94,9 @@ public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
 
     @Option(name = "-hits", metaVar = "[number]", usage = "max number of hits to return")
     public int hits = 1000;
+
+    @Option(name = "-threads", metaVar = "[number]", usage = "Number of threads to use.")
+    public int threads = 1;
   }
 
   protected SimpleTweetSearcher() {
@@ -239,7 +242,7 @@ public class SimpleTweetSearcher extends SimpleSearcher implements Closeable {
       long t = Long.parseLong(topics.get(id).get("date"));
       taskInput.add(Pair.of(topics.get(id).get("title"), t));
     }
-    Map<String, Result[]> threadResult = searcher.batchSearchTweet(taskInput, taskIds, 1000, 20);
+    Map<String, Result[]> threadResult = searcher.batchSearchTweet(taskInput, taskIds, searchArgs.hits, searchArgs.threads);
     for (String id : taskIds) {
       Result[] results = threadResult.get(id);
       for (int i=0; i<results.length; i++) {
